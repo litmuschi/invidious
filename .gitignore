@@ -7,3 +7,7 @@
 /invidious
 /sentry
 /config/config.yml
+
+# Python
+__pycache__/
+*.pyc
