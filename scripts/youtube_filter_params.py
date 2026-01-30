@@ -21,9 +21,10 @@ Example usage:
 """
 
 import base64
+import binascii
 from enum import IntEnum, IntFlag
-from typing import Dict, Any, Union
-from urllib.parse import quote
+from typing import Dict, Tuple
+from urllib.parse import quote, unquote
 
 
 class Date(IntEnum):
@@ -67,20 +68,25 @@ class Features(IntFlag):
     """Feature filter flags.
     
     Multiple features can be combined using bitwise OR.
-    Each feature corresponds to a different field number in the protobuf.
+    Each feature is a bit flag in this enum, and maps to a specific
+    protobuf field number in the embedded message (shown in comments).
+    
+    Note: The bit positions in this enum are for internal flag storage,
+    not the protobuf field numbers. The mapping to protobuf fields is
+    done in the to_yt_params() method.
     """
     NONE = 0
-    LIVE = 1 << 0        # Live streams - field 8
-    FOUR_K = 1 << 1      # 4K resolution - field 14
-    HD = 1 << 2          # HD quality - field 4
-    SUBTITLES = 1 << 3   # Subtitles/CC - field 5
-    CCOMMONS = 1 << 4    # Creative Commons - field 6
-    THREE_SIXTY = 1 << 5 # 360° video - field 15
-    VR180 = 1 << 6       # VR180 - field 26
-    THREE_D = 1 << 7     # 3D video - field 7
-    HDR = 1 << 8         # HDR - field 25
-    LOCATION = 1 << 9    # Location tagged - field 23
-    PURCHASED = 1 << 10  # Purchased - field 9
+    LIVE = 1 << 0        # Live streams - protobuf field 8
+    FOUR_K = 1 << 1      # 4K resolution - protobuf field 14
+    HD = 1 << 2          # HD quality - protobuf field 4
+    SUBTITLES = 1 << 3   # Subtitles/CC - protobuf field 5
+    CCOMMONS = 1 << 4    # Creative Commons - protobuf field 6
+    THREE_SIXTY = 1 << 5 # 360° video - protobuf field 15
+    VR180 = 1 << 6       # VR180 - protobuf field 26
+    THREE_D = 1 << 7     # 3D video - protobuf field 7
+    HDR = 1 << 8         # HDR - protobuf field 25
+    LOCATION = 1 << 9    # Location tagged - protobuf field 23
+    PURCHASED = 1 << 10  # Purchased - protobuf field 9
 
 
 class Sort(IntEnum):
@@ -299,8 +305,6 @@ class Filters:
         Returns:
             A Filters instance with the decoded values
         """
-        from urllib.parse import unquote
-        
         if not sp_param:
             return cls()
         
@@ -310,7 +314,7 @@ class Filters:
         # Base64 decode
         try:
             data = base64.urlsafe_b64decode(decoded_url)
-        except Exception:
+        except (binascii.Error, ValueError):
             # Try standard base64 if URL-safe fails
             data = base64.b64decode(decoded_url)
         
@@ -412,7 +416,7 @@ class Filters:
         )
 
 
-def _decode_varint(data: bytes, pos: int) -> tuple:
+def _decode_varint(data: bytes, pos: int) -> Tuple[int, int]:
     """Decode a varint from a byte sequence.
     
     Args:
@@ -463,8 +467,8 @@ def encode_filters(
         The encoded filter parameter string
         
     Example:
-        >>> encode_filters(date=Date.WEEK, sort=Sort.DATE)
-        'CAISAggDqAEB'  # (actual output may vary)
+        >>> encode_filters(date=Date.WEEK)
+        'EgIIA_ABAQ%3D%3D'
     """
     return Filters(
         date=date,
